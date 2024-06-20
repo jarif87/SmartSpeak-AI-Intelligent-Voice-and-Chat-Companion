@@ -24,8 +24,14 @@ def handle_voice_input():
         st.write(devices)  # Debugging output
         
         if devices:
-            device_id = devices[0]['index']  # Use the first available device
-            st.write(f"Using audio input device: {devices[0]['name']}")
+            # Use the first available input device
+            input_devices = [device for device in devices if device['max_input_channels'] > 0]
+            if input_devices:
+                device_id = input_devices[0]['index']
+                st.write(f"Using audio input device: {input_devices[0]['name']}")
+            else:
+                st.error("No available audio input devices with input channels found.")
+                return None
         else:
             st.error("No audio input devices found.")
             return None
