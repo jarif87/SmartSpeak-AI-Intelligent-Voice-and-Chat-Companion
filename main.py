@@ -56,7 +56,7 @@ def handle_voice_input():
         # Query available audio input devices
         devices = sd.query_devices()
         if devices:
-            device_id = devices[0]['index']  # Use the first available device (modify as needed)
+            device_id = devices[0]['index']  # Use the first available device
         else:
             st.error("No audio input devices found.")
             return None
