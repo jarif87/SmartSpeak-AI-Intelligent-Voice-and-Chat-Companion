@@ -4,11 +4,12 @@ import numpy as np
 import speech_recognition as sr
 import os
 import wave
-import asyncio
 
 # Initialize Streamlit session state
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "user_query" not in st.session_state:
+    st.session_state.user_query = None
 
 # Set page title and icon
 st.set_page_config(page_title="Voice & Chat AI Companion", page_icon="🎙️")
@@ -99,4 +100,9 @@ elif input_method == "Voice":
         if webrtc_ctx.audio_processor and webrtc_ctx.audio_processor.user_query:
             user_query = webrtc_ctx.audio_processor.user_query
             if user_query:
-                process_user_query(user_query)
+                st.session_state.user_query = user_query
+
+# Check if there is a new user query from voice input
+if st.session_state.user_query:
+    process_user_query(st.session_state.user_query)
+    st.session_state.user_query = None
