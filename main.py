@@ -49,27 +49,25 @@ def get_response(query, chat_history):
 def get_audio_input_device():
     try:
         devices = sd.query_devices()
-        input_devices = [device for device in devices if device['max_input_channels'] > 0]
-        return input_devices[0] if input_devices else None
+        input_devices = [(i, device['name']) for i, device in enumerate(devices) if device['max_input_channels'] > 0]
+        if not input_devices:
+            st.error("No audio input devices found.")
+            return None
+        return input_devices
     except Exception as e:
         st.error(f"Error querying audio devices: {e}")
         return None
 
 # Function to handle voice input using sounddevice and SpeechRecognition
-def handle_voice_input():
+def handle_voice_input(device_id):
     temp_audio_file = "temp_audio.wav"
-    device = get_audio_input_device()
-
-    if not device:
-        st.error("No audio input devices found.")
-        return None
 
     try:
         st.write("Speak now...")
         fs = 44100  # Sample rate
         seconds = 5  # Duration of recording
 
-        myrecording = sd.rec(int(seconds * fs), samplerate=fs, channels=2, device=device['index'])
+        myrecording = sd.rec(int(seconds * fs), samplerate=fs, channels=2, device=device_id)
         sd.wait()  # Wait until recording is finished
 
         # Save the audio to the temporary file
@@ -132,7 +130,11 @@ if input_method == "Text":
     user_query = st.text_input("Your Message")
     st.write("")  # To clear any previous "Speak now..." message
 elif input_method == "Voice":
-    user_query = handle_voice_input()
+    devices = get_audio_input_device()
+    if devices:
+        device_index, device_name = st.selectbox("Select audio input device", devices, format_func=lambda x: x[1])
+        st.write(f"Using audio input device: {device_name}")
+        user_query = handle_voice_input(device_index)
     st.write("")  # To clear any previous "Speak now..." message
 
 # Display voice symbol if voice input is selected
