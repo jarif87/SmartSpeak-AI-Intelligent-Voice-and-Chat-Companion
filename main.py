@@ -8,8 +8,6 @@ import wave
 # Initialize Streamlit session state
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-if "user_query" not in st.session_state:
-    st.session_state.user_query = None
 
 # Set page title and icon
 st.set_page_config(page_title="Voice & Chat AI Companion", page_icon="🎙️")
@@ -82,7 +80,6 @@ for message in st.session_state.chat_history:
 # User input - handle both text and voice
 input_method = st.selectbox("Select input method", ["Text", "Voice"])
 
-user_query = None
 if input_method == "Text":
     user_query = st.text_input("Your Message")
     if user_query:
@@ -97,12 +94,8 @@ elif input_method == "Voice":
     )
     if webrtc_ctx.state.playing:
         st.write("Speak now...")  # Inform the user to speak
-        if webrtc_ctx.audio_processor and webrtc_ctx.audio_processor.user_query:
+        if webrtc_ctx.audio_processor:
             user_query = webrtc_ctx.audio_processor.user_query
             if user_query:
-                st.session_state.user_query = user_query
-
-# Check if there is a new user query from voice input
-if st.session_state.user_query:
-    process_user_query(st.session_state.user_query)
-    st.session_state.user_query = None
+                process_user_query(user_query)
+                webrtc_ctx.audio_processor.user_query = None
