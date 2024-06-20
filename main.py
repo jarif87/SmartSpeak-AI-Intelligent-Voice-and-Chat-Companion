@@ -4,6 +4,7 @@ import numpy as np
 import speech_recognition as sr
 import os
 import wave
+import queue
 
 # Initialize Streamlit session state
 if "chat_history" not in st.session_state:
@@ -12,12 +13,12 @@ if "chat_history" not in st.session_state:
 # Set page title and icon
 st.set_page_config(page_title="Voice & Chat AI Companion", page_icon="🎙️")
 
-# Function to get audio from WebRTC
+# Class to handle audio processing
 class AudioProcessor(AudioProcessorBase):
     def __init__(self):
         self.recorder = sr.Recognizer()
         self.temp_audio_file = "temp_audio.wav"
-        self.user_query = None
+        self.q = queue.Queue()
 
     def recv(self, frame: np.ndarray) -> np.ndarray:
         try:
@@ -27,7 +28,8 @@ class AudioProcessor(AudioProcessorBase):
             # Use SpeechRecognition to recognize speech from the temporary file
             with sr.AudioFile(self.temp_audio_file) as source:
                 audio_data = self.recorder.record(source)
-                self.user_query = self.recorder.recognize_google(audio_data)
+                user_query = self.recorder.recognize_google(audio_data)
+                self.q.put(user_query)
             return frame
         except sr.UnknownValueError:
             st.write("Sorry, I couldn't understand what you said.")
@@ -94,8 +96,12 @@ elif input_method == "Voice":
     )
     if webrtc_ctx.state.playing:
         st.write("Speak now...")  # Inform the user to speak
-        if webrtc_ctx.audio_processor:
-            user_query = webrtc_ctx.audio_processor.user_query
+        if webrtc_ctx.audio_processor and not webrtc_ctx.audio_processor.q.empty():
+            user_query = webrtc_ctx.audio_processor.q.get()
             if user_query:
+                st.write(f"Captured query: {user_query}")  # Debugging output
                 process_user_query(user_query)
-                webrtc_ctx.audio_processor.user_query = None
+            else:
+                st.write("No query captured")  # Debugging output
+        else:
+            st.write("Audio processor not initialized or queue is empty")  # Debugging output
