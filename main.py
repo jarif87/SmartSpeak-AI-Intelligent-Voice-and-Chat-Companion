@@ -1,81 +1,116 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
+import os
+import sounddevice as sd
 import numpy as np
 import speech_recognition as sr
-import queue
+import wave
 
 # Initialize Streamlit session state
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# Set page title and icon
-st.set_page_config(page_title="Voice & Chat AI Companion", page_icon="🎙️")
+st.set_page_config(page_title="Voice & Chat AI Companion", page_icon=":dragon:")
+st.title("SpeakSmart Intelligent Voice and Chat Assistant")
 
-# Class to handle audio processing
-class AudioProcessor(AudioProcessorBase):
-    def __init__(self):
-        super().__init__()
-        self.recognizer = sr.Recognizer()
-        self.q = queue.Queue()
+# Function to handle voice input using sounddevice and SpeechRecognition
+def handle_voice_input():
+    temp_audio_file = "temp_audio.wav"
 
-    def recv(self, frame: np.ndarray) -> np.ndarray:
-        try:
-            # Convert frame to audio data
-            audio_data = frame.flatten().astype(np.int16)
+    try:
+        st.write("Speak now...")
+        fs = 44100  # Sample rate
+        seconds = 5  # Duration of recording
 
-            # Recognize speech from the audio data
-            with sr.AudioData(audio_data, 44100) as source:
-                audio_text = self.recognizer.recognize_google(source)
-                self.q.put(audio_text)
-                st.write(f"Recognized speech: {audio_text}")  # Debugging output
+        # Ensure the selected audio device is available and accessible
+        devices = sd.query_devices()
+        st.write(devices)  # Debugging output
 
-            return frame
+        if devices:
+            device_id = devices[0]['index']  # Use the first available device (modify as needed)
+        else:
+            st.error("No audio input devices found.")
+            return None
 
-        except sr.UnknownValueError:
-            st.warning("Sorry, I couldn't understand what you said.")
-            return frame
-        except sr.RequestError:
-            st.error("Sorry, I'm having trouble accessing the Google API.")
-            return frame
-        except Exception as e:
-            st.error(f"Error handling voice input: {e}")
-            return frame
+        myrecording = sd.rec(int(seconds * fs), samplerate=fs, channels=2, device=device_id)
+        sd.wait()  # Wait until recording is finished
+
+        # Save the audio to the temporary file
+        write_audio(temp_audio_file, myrecording, fs)
+
+        # Use SpeechRecognition to recognize speech from the temporary file
+        r = sr.Recognizer()
+        with sr.AudioFile(temp_audio_file) as source:
+            audio_data = r.record(source)  # Read the entire audio file
+            user_query = r.recognize_google(audio_data)
+        return user_query
+    except sr.UnknownValueError:
+        st.write("Sorry, I couldn't understand what you said.")
+        return None
+    except sr.RequestError:
+        st.write("Sorry, I'm having trouble accessing the Google API.")
+        return None
+    except PermissionError:
+        st.error("Permission error accessing audio device.")
+        return None
+    except Exception as e:
+        st.error(f"Error handling voice input: {e}")
+        return None
+    finally:
+        # Delete the temporary audio file if it exists
+        if os.path.exists(temp_audio_file):
+            os.remove(temp_audio_file)
+
+# Helper function to write audio to file using wave module
+def write_audio(filename, data, fs):
+    try:
+        # Ensure data is in the correct format
+        if data.dtype != np.int16:
+            data = (data * np.iinfo(np.int16).max).astype(np.int16)
+
+        # Write NumPy array to WAV file
+        wf = wave.open(filename, 'wb')
+        wf.setnchannels(2)
+        wf.setsampwidth(2)
+        wf.setframerate(fs)
+        wf.writeframes(data.tobytes())
+        wf.close()
+    except Exception as e:
+        st.error(f"Error writing audio: {e}")
 
 # Render conversation history
 for message in st.session_state.chat_history:
     if message['type'] == "human":
-        with st.container():
-            st.write("🙂 Human: " + message['content'])
+        with st.chat_message("Human"):
+            st.markdown(message['content'])
     else:
-        with st.container():
-            st.write("🤖 AI: " + message['content'])
+        with st.chat_message("AI"):
+            st.markdown(message['content'])
 
 # User input - handle both text and voice
-input_method = st.selectbox("Select input method", ["Text", "Voice"])
+input_method = st.selectbox("Select input Text or Voice method", ["Text", "Voice"])
 
+user_query = None
 if input_method == "Text":
     user_query = st.text_input("Your Message")
-    if user_query:
-        st.session_state.chat_history.append({"type": "human", "content": user_query})
-        with st.container():
-            st.write("🙂 Human: " + user_query)
+    st.write("")  # Clear any previous "Speak now..." message
 elif input_method == "Voice":
-    webrtc_ctx = webrtc_streamer(
-        key="speech-to-text",
-        mode=WebRtcMode.SENDRECV,
-        audio_processor_factory=AudioProcessor,
-        async_processing=True,
-    )
+    user_query = handle_voice_input()
+    st.write("")  # Clear any previous "Speak now..." message
 
-    if webrtc_ctx.audio_processor and not webrtc_ctx.audio_processor.q.empty():
-        user_query = webrtc_ctx.audio_processor.q.get()
-        if user_query:
-            st.session_state.chat_history.append({"type": "human", "content": user_query})
-            with st.container():
-                st.write("🙂 Human: " + user_query)
+# Display voice icon if voice input is selected
+if input_method == "Voice":
+    st.write("🎤 Voice Input")
 
-# Simulate AI response for demonstration purposes
-ai_response = "Hello! I am your AI assistant."
-st.session_state.chat_history.append({"type": "ai", "content": ai_response})
-with st.container():
-    st.write("🤖 AI: " + ai_response)
+# Process user query and AI response
+if user_query:
+    st.session_state.chat_history.append({"type": "human", "content": user_query})
+
+    with st.chat_message("Human"):
+        st.markdown(user_query)
+
+    # Mock AI response for demonstration
+    ai_response = "Hello! I am your AI assistant."
+    st.session_state.chat_history.append({"type": "ai", "content": ai_response})
+
+    with st.chat_message("AI"):
+        st.markdown(ai_response)
