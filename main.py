@@ -61,6 +61,8 @@ def handle_voice_input():
             st.error("No audio input devices found.")
             return None
 
+        st.write(f"Using audio input device: {devices[0]['name']}")
+
         myrecording = sd.rec(int(seconds * fs), samplerate=fs, channels=2, device=device_id)
         sd.wait()  # Wait until recording is finished
 
