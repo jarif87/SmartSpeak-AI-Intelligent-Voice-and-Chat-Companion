@@ -1,10 +1,11 @@
-import streamlit as st
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
-import speech_recognition as sr
 import os
+import streamlit as st
 from dotenv import load_dotenv
 import google.generativeai as genai
-
+import sounddevice as sd
+import numpy as np
+import speech_recognition as sr
+import wave
 
 # Load environment variables from .env file
 load_dotenv()
@@ -30,7 +31,8 @@ model = genai.GenerativeModel(
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-st.set_page_config(page_title="SpeakSmart Intelligent Voice and Chat Assistant", page_icon="🤖")
+st.set_page_config(page_title="Voice & Chat AI Companion", page_icon=":dragon:")
+st.title("SpeakSmart Intelligent Voice and Chat Assistant")
 
 # Function to get response from the Gemini model
 def get_response(query, chat_history):
@@ -42,29 +44,70 @@ def get_response(query, chat_history):
     except genai.types.StopCandidateException as e:
         return e.candidate.text
 
-class AudioProcessor(AudioProcessorBase):
-    def __init__(self):
-        self.recognizer = sr.Recognizer()
-        self.audio_data = None
+# Function to handle voice input using sounddevice and SpeechRecognition
+def handle_voice_input():
+    temp_audio_file = "temp_audio.wav"
 
-    def recv(self, frame):
-        audio = frame.to_ndarray()
-        try:
-            audio = sr.AudioData(audio.tobytes(), frame.sampling_rate, frame.sample_width)
-            user_query = self.recognizer.recognize_google(audio)
-            st.session_state.chat_history.append({"type": "human", "content": user_query})
-            ai_response = get_response(user_query, st.session_state.chat_history)
-            st.session_state.chat_history.append({"type": "ai", "content": ai_response})
-            st.experimental_rerun()
-        except sr.UnknownValueError:
-            st.write("Sorry, I couldn't understand what you said.")
-        except sr.RequestError:
-            st.write("Sorry, I'm having trouble accessing the Google API.")
-        except Exception as e:
-            st.error(f"Error handling voice input: {e}")
-        return frame
+    try:
+        st.write("Speak now...")
+        fs = 44100  # Sample rate
+        seconds = 5  # Duration of recording
 
-# Conversation rendering
+        # Ensure the selected audio device is available and accessible
+        devices = sd.query_devices()
+        if devices:
+            device_id = devices[0]['index']  # Use the first available device (modify as needed)
+        else:
+            st.error("No audio input devices found.")
+            return None
+
+        myrecording = sd.rec(int(seconds * fs), samplerate=fs, channels=2, device=device_id)
+        sd.wait()  # Wait until recording is finished
+
+        # Save the audio to the temporary file
+        write_audio(temp_audio_file, myrecording, fs)
+
+        # Use SpeechRecognition to recognize speech from the temporary file
+        r = sr.Recognizer()
+        with sr.AudioFile(temp_audio_file) as source:
+            audio_data = r.record(source)  # Read the entire audio file
+            user_query = r.recognize_google(audio_data)
+        return user_query
+    except sr.UnknownValueError:
+        st.write("Sorry, I couldn't understand what you said.")
+        return None
+    except sr.RequestError:
+        st.write("Sorry, I'm having trouble accessing the Google API.")
+        return None
+    except PermissionError:
+        st.error("Permission error accessing audio device.")
+        return None
+    except Exception as e:
+        st.error(f"Error handling voice input: {e}")
+        return None
+    finally:
+        # Delete the temporary audio file if it exists
+        if os.path.exists(temp_audio_file):
+            os.remove(temp_audio_file)
+
+# Helper function to write audio to file using wave module
+def write_audio(filename, data, fs):
+    try:
+        # Ensure data is in the correct format
+        if data.dtype != np.int16:
+            data = (data * np.iinfo(np.int16).max).astype(np.int16)
+
+        # Write NumPy array to WAV file
+        wf = wave.open(filename, 'wb')
+        wf.setnchannels(2)
+        wf.setsampwidth(pyaudio.get_sample_size(pyaudio.paInt16))
+        wf.setframerate(fs)
+        wf.writeframes(data.tobytes())
+        wf.close()
+    except Exception as e:
+        st.error(f"Error writing audio: {e}")
+
+# Render conversation history
 for message in st.session_state.chat_history:
     if message['type'] == "human":
         with st.chat_message("Human"):
@@ -73,13 +116,30 @@ for message in st.session_state.chat_history:
         with st.chat_message("AI"):
             st.markdown(message['content'])
 
-# WebRTC for real-time voice input
-webrtc_streamer(key="voice_input", mode=WebRtcMode.SENDRECV, audio_processor_factory=AudioProcessor)
+# User input - handle both text and voice
+input_method = st.selectbox("Select input Text or Voice method", ["Text", "Voice"])
 
-# User input - handle text input
-user_query = st.text_input("Your Message")
+user_query = None
+if input_method == "Text":
+    user_query = st.text_input("Your Message")
+    st.write("")  # Clear any previous "Speak now..." message
+elif input_method == "Voice":
+    user_query = handle_voice_input()
+    st.write("")  # Clear any previous "Speak now..." message
+
+# Display voice icon if voice input is selected
+if input_method == "Voice":
+    st.write("🎤 Voice Input")
+
+# Process user query and AI response
 if user_query:
     st.session_state.chat_history.append({"type": "human", "content": user_query})
-    ai_response = get_response(user_query, st.session_state.chat_history)
+
+    with st.chat_message("Human"):
+        st.markdown(user_query)
+
+    with st.chat_message("AI"):
+        ai_response = get_response(user_query, st.session_state.chat_history)
+        st.markdown(ai_response)
+
     st.session_state.chat_history.append({"type": "ai", "content": ai_response})
-    st.experimental_rerun()
