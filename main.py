@@ -80,7 +80,7 @@ def handle_voice_input():
         st.error("Sorry, I'm having trouble accessing the Google API.")
         return None
     except PermissionError:
-        st.error("Permission error accessing audio device.")
+        st.error("Permission error accessing audio device. Make sure microphone permissions are granted.")
         return None
     except Exception as e:
         st.error(f"Error handling voice input: {e}")
