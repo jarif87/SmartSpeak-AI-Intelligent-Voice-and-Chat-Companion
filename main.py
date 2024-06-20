@@ -74,10 +74,10 @@ def handle_voice_input():
             user_query = r.recognize_google(audio_data)
         return user_query
     except sr.UnknownValueError:
-        st.write("Sorry, I couldn't understand what you said.")
+        st.error("Sorry, I couldn't understand what you said.")
         return None
     except sr.RequestError:
-        st.write("Sorry, I'm having trouble accessing the Google API.")
+        st.error("Sorry, I'm having trouble accessing the Google API.")
         return None
     except PermissionError:
         st.error("Permission error accessing audio device.")
