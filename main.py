@@ -95,6 +95,8 @@ elif input_method == "Voice":
         async_processing=True,
     )
     if webrtc_ctx.state.playing:
+        st.write("Speak now...")  # Inform the user to speak
         if webrtc_ctx.audio_processor and webrtc_ctx.audio_processor.user_query:
             user_query = webrtc_ctx.audio_processor.user_query
-            process_user_query(user_query)
+            if user_query:
+                process_user_query(user_query)
