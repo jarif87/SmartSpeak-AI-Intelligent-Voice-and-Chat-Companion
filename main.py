@@ -32,11 +32,11 @@ model = genai.GenerativeModel(
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-st.set_page_config(page_title="Voice & Chat AI Companion", page_icon=":dragon:")
-st.title("SpeakSmart Intelligent Voice and Chat Assistant")
+st.set_page_config(page_title="SpeakSmart Intelligent Voice and Chat Assistant", page_icon="🤖")
 
 # Function to get response from the Gemini model
 def get_response(query, chat_history):
+    # Prepare the chat history in the required format
     history = [{"parts": [{"text": msg['content']}], "role": "user" if msg['type'] == "human" else "model"} for msg in chat_history]
     chat_session = model.start_chat(history=history)
     try:
@@ -54,10 +54,10 @@ def handle_voice_input():
         fs = 44100  # Sample rate
         seconds = 5  # Duration of recording
 
-        # Ensure the selected audio device is available and accessible
+        # Query available audio input devices
         devices = sd.query_devices()
         if devices:
-            device_id = devices[0]['index']  # Use the first available device (modify as needed)
+            device_id = devices[0]['index']  # Use the first available device
         else:
             st.error("No audio input devices found.")
             return None
@@ -91,7 +91,7 @@ def handle_voice_input():
         if os.path.exists(temp_audio_file):
             os.remove(temp_audio_file)
 
-# Helper function to write audio to file using wave module
+# Helper function to write audio to file using sounddevice and wave module
 def write_audio(filename, data, fs):
     try:
         # Ensure data is in the correct format
@@ -108,7 +108,7 @@ def write_audio(filename, data, fs):
     except Exception as e:
         st.error(f"Error writing audio: {e}")
 
-# Render conversation history
+# Conversation rendering
 for message in st.session_state.chat_history:
     if message['type'] == "human":
         with st.chat_message("Human"):
@@ -123,16 +123,15 @@ input_method = st.selectbox("Select input Text or Voice method", ["Text", "Voice
 user_query = None
 if input_method == "Text":
     user_query = st.text_input("Your Message")
-    st.write("")  # Clear any previous "Speak now..." message
+    st.write("")  # To clear any previous "Speak now..." message
 elif input_method == "Voice":
     user_query = handle_voice_input()
-    st.write("")  # Clear any previous "Speak now..." message
+    st.write("")  # To clear any previous "Speak now..." message
 
-# Display voice icon if voice input is selected
+# Display voice symbol if voice input is selected
 if input_method == "Voice":
     st.write("🎤 Voice Input")
 
-# Process user query and AI response
 if user_query:
     st.session_state.chat_history.append({"type": "human", "content": user_query})
 
