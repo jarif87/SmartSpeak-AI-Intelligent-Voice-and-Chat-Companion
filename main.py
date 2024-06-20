@@ -45,24 +45,31 @@ def get_response(query, chat_history):
     except genai.types.StopCandidateException as e:
         return e.candidate.text
 
+# Function to query available audio input devices
+def get_audio_input_device():
+    try:
+        devices = sd.query_devices()
+        input_devices = [device for device in devices if device['max_input_channels'] > 0]
+        return input_devices[0] if input_devices else None
+    except Exception as e:
+        st.error(f"Error querying audio devices: {e}")
+        return None
+
 # Function to handle voice input using sounddevice and SpeechRecognition
 def handle_voice_input():
     temp_audio_file = "temp_audio.wav"
+    device = get_audio_input_device()
+
+    if not device:
+        st.error("No audio input devices found.")
+        return None
 
     try:
         st.write("Speak now...")
         fs = 44100  # Sample rate
         seconds = 5  # Duration of recording
 
-        # Query available audio input devices
-        devices = sd.query_devices()
-        if devices:
-            device_id = devices[0]['index']  # Use the first available device
-        else:
-            st.error("No audio input devices found.")
-            return None
-
-        myrecording = sd.rec(int(seconds * fs), samplerate=fs, channels=2, device=device_id)
+        myrecording = sd.rec(int(seconds * fs), samplerate=fs, channels=2, device=device['index'])
         sd.wait()  # Wait until recording is finished
 
         # Save the audio to the temporary file
@@ -118,7 +125,7 @@ for message in st.session_state.chat_history:
             st.markdown(message['content'])
 
 # User input - handle both text and voice
-input_method = st.selectbox("Select input Text or Voice method", ["Text", "Voice"])
+input_method = st.selectbox("Select input method", ["Text", "Voice"])
 
 user_query = None
 if input_method == "Text":
