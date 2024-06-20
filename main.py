@@ -1,10 +1,10 @@
-import os
 import streamlit as st
 from dotenv import load_dotenv
 import google.generativeai as genai
+import os
+import speech_recognition as sr
 import sounddevice as sd
 import numpy as np
-import speech_recognition as sr
 import wave
 
 # Load environment variables from .env file
@@ -53,7 +53,7 @@ def handle_voice_input():
         fs = 44100  # Sample rate
         seconds = 5  # Duration of recording
 
-        # Ensure the selected audio device is available and accessible
+        # Query available audio input devices
         devices = sd.query_devices()
         if devices:
             device_id = devices[0]['index']  # Use the first available device (modify as needed)
