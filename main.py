@@ -1,10 +1,9 @@
+import os
 import streamlit as st
 from dotenv import load_dotenv
 import google.generativeai as genai
-import os
 import speech_recognition as sr
-import numpy as np
-import wave
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
 
 # Load environment variables from .env file
 load_dotenv()
@@ -42,30 +41,27 @@ def get_response(query, chat_history):
     except genai.types.StopCandidateException as e:
         return e.candidate.text
 
-# Function to handle voice input using uploaded file and SpeechRecognition
-def handle_voice_input(uploaded_file):
-    if uploaded_file is not None:
-        try:
-            with open("temp_audio.wav", "wb") as f:
-                f.write(uploaded_file.getbuffer())
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.recognizer = sr.Recognizer()
+        self.audio_data = None
 
-            r = sr.Recognizer()
-            with sr.AudioFile("temp_audio.wav") as source:
-                audio_data = r.record(source)
-                user_query = r.recognize_google(audio_data)
-            return user_query
+    def recv(self, frame):
+        audio = frame.to_ndarray()
+        try:
+            audio = sr.AudioData(audio.tobytes(), frame.sampling_rate, frame.sample_width)
+            user_query = self.recognizer.recognize_google(audio)
+            st.session_state.chat_history.append({"type": "human", "content": user_query})
+            ai_response = get_response(user_query, st.session_state.chat_history)
+            st.session_state.chat_history.append({"type": "ai", "content": ai_response})
+            st.experimental_rerun()
         except sr.UnknownValueError:
             st.write("Sorry, I couldn't understand what you said.")
-            return None
         except sr.RequestError:
             st.write("Sorry, I'm having trouble accessing the Google API.")
-            return None
         except Exception as e:
             st.error(f"Error handling voice input: {e}")
-            return None
-        finally:
-            if os.path.exists("temp_audio.wav"):
-                os.remove("temp_audio.wav")
+        return frame
 
 # Conversation rendering
 for message in st.session_state.chat_history:
@@ -76,27 +72,13 @@ for message in st.session_state.chat_history:
         with st.chat_message("AI"):
             st.markdown(message['content'])
 
-# User input - handle both text and voice
-input_method = st.selectbox("Select input method", ["Text", "Voice"])
+# WebRTC for real-time voice input
+webrtc_streamer(key="voice_input", mode=WebRtcMode.SENDRECV, audio_processor_factory=AudioProcessor)
 
-user_query = None
-if input_method == "Text":
-    user_query = st.text_input("Your Message")
-    st.write("")  # To clear any previous "Speak now..." message
-elif input_method == "Voice":
-    uploaded_file = st.file_uploader("Upload your audio file", type=["wav"])
-    if uploaded_file is not None:
-        user_query = handle_voice_input(uploaded_file)
-        st.write("")  # To clear any previous "Speak now..." message
-
+# User input - handle text input
+user_query = st.text_input("Your Message")
 if user_query:
     st.session_state.chat_history.append({"type": "human", "content": user_query})
-
-    with st.chat_message("Human"):
-        st.markdown(user_query)
-
-    with st.chat_message("AI"):
-        ai_response = get_response(user_query, st.session_state.chat_history)
-        st.markdown(ai_response)
-
+    ai_response = get_response(user_query, st.session_state.chat_history)
     st.session_state.chat_history.append({"type": "ai", "content": ai_response})
+    st.experimental_rerun()
