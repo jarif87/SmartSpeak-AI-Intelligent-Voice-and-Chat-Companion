@@ -1,9 +1,10 @@
-import os
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
+import speech_recognition as sr
+import os
 from dotenv import load_dotenv
 import google.generativeai as genai
-import speech_recognition as sr
-from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
+
 
 # Load environment variables from .env file
 load_dotenv()
