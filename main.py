@@ -22,7 +22,6 @@ class AudioProcessor(AudioProcessorBase):
 
     def recv(self, frame: np.ndarray) -> np.ndarray:
         try:
-            st.write("Processing audio...")
             # Save the audio to a temporary file
             self.write_audio(self.temp_audio_file, frame)
             
@@ -30,7 +29,6 @@ class AudioProcessor(AudioProcessorBase):
             with sr.AudioFile(self.temp_audio_file) as source:
                 audio_data = self.recorder.record(source)
                 self.user_query = self.recorder.recognize_google(audio_data)
-            st.write(f"Recognized speech: {self.user_query}")
             return frame
         except sr.UnknownValueError:
             st.write("Sorry, I couldn't understand what you said.")
@@ -61,6 +59,16 @@ class AudioProcessor(AudioProcessorBase):
         except Exception as e:
             st.error(f"Error writing audio: {e}")
 
+# Function to process user query and generate AI response
+def process_user_query(user_query):
+    st.session_state.chat_history.append({"type": "human", "content": user_query})
+    with st.container():
+        st.write("🙂 Human: " + user_query)
+    ai_response = "Hello! I am your AI assistant."
+    st.session_state.chat_history.append({"type": "ai", "content": ai_response})
+    with st.container():
+        st.write("🤖 AI: " + ai_response)
+
 # Render conversation history
 for message in st.session_state.chat_history:
     if message['type'] == "human":
@@ -76,6 +84,8 @@ input_method = st.selectbox("Select input method", ["Text", "Voice"])
 user_query = None
 if input_method == "Text":
     user_query = st.text_input("Your Message")
+    if user_query:
+        process_user_query(user_query)
 elif input_method == "Voice":
     webrtc_ctx = webrtc_streamer(
         key="speech-to-text",
@@ -84,23 +94,7 @@ elif input_method == "Voice":
         media_stream_constraints={"audio": True, "video": False},
         async_processing=True,
     )
-
-    # Check if audio has been processed
     if webrtc_ctx.state.playing:
-        if webrtc_ctx.audio_processor:
+        if webrtc_ctx.audio_processor and webrtc_ctx.audio_processor.user_query:
             user_query = webrtc_ctx.audio_processor.user_query
-            st.write(f"Captured query: {user_query}")
-
-# Process user query and AI response
-if user_query:
-    st.session_state.chat_history.append({"type": "human", "content": user_query})
-
-    with st.container():
-        st.write("🙂 Human: " + user_query)
-
-    # Simulate AI response for demonstration purposes
-    ai_response = "Hello! I am your AI assistant."
-    st.session_state.chat_history.append({"type": "ai", "content": ai_response})
-
-    with st.container():
-        st.write("🤖 AI: " + ai_response)
+            process_user_query(user_query)
