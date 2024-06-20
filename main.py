@@ -22,14 +22,22 @@ class AudioProcessor(AudioProcessorBase):
 
     def recv(self, frame: np.ndarray) -> np.ndarray:
         try:
+            # Convert frame to audio data
+            audio_data = frame.tobytes()
+
             # Save the audio to a temporary file
-            self.write_audio(self.temp_audio_file, frame)
-            
+            with wave.open(self.temp_audio_file, 'wb') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(44100)
+                wf.writeframes(audio_data)
+
             # Use SpeechRecognition to recognize speech from the temporary file
             with sr.AudioFile(self.temp_audio_file) as source:
                 audio_data = self.recorder.record(source)
                 user_query = self.recorder.recognize_google(audio_data)
                 self.q.put(user_query)
+                st.write(f"Recognized speech: {user_query}")  # Debugging output
             return frame
         except sr.UnknownValueError:
             st.write("Sorry, I couldn't understand what you said.")
@@ -47,18 +55,6 @@ class AudioProcessor(AudioProcessorBase):
             # Delete the temporary audio file if it exists
             if os.path.exists(self.temp_audio_file):
                 os.remove(self.temp_audio_file)
-
-    def write_audio(self, filename, data):
-        try:
-            data = (data * np.iinfo(np.int16).max).astype(np.int16)
-            wf = wave.open(filename, 'wb')
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(44100)
-            wf.writeframes(data.tobytes())
-            wf.close()
-        except Exception as e:
-            st.error(f"Error writing audio: {e}")
 
 # Function to process user query and generate AI response
 def process_user_query(user_query):
@@ -105,3 +101,11 @@ elif input_method == "Voice":
                 st.write("No query captured")  # Debugging output
         else:
             st.write("Audio processor not initialized or queue is empty")  # Debugging output
+
+# Ensuring queue check for user query after speech recognition
+if input_method == "Voice" and webrtc_ctx.state.playing:
+    if webrtc_ctx.audio_processor and not webrtc_ctx.audio_processor.q.empty():
+        user_query = webrtc_ctx.audio_processor.q.get()
+        if user_query:
+            st.write(f"Captured query: {user_query}")
+            process_user_query(user_query)
