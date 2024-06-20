@@ -5,7 +5,6 @@ import os
 import speech_recognition as sr
 import sounddevice as sd
 import numpy as np
-import pyaudio
 import wave
 
 # Load environment variables from .env file
@@ -104,12 +103,11 @@ def write_audio(filename, data, fs):
             data = (data * np.iinfo(np.int16).max).astype(np.int16)
 
         # Write NumPy array to WAV file
-        wf = wave.open(filename, 'wb')
-        wf.setnchannels(2)
-        wf.setsampwidth(pyaudio.get_sample_size(pyaudio.paInt16))
-        wf.setframerate(fs)
-        wf.writeframes(data.tobytes())
-        wf.close()
+        with wave.open(filename, 'wb') as wf:
+            wf.setnchannels(2)
+            wf.setsampwidth(2)
+            wf.setframerate(fs)
+            wf.writeframes(data.tobytes())
     except Exception as e:
         st.error(f"Error writing audio: {e}")
 
@@ -135,6 +133,8 @@ elif input_method == "Voice":
         device_index, device_name = st.selectbox("Select audio input device", devices, format_func=lambda x: x[1])
         st.write(f"Using audio input device: {device_name}")
         user_query = handle_voice_input(device_index)
+    else:
+        st.write("No audio input devices found.")
     st.write("")  # To clear any previous "Speak now..." message
 
 # Display voice symbol if voice input is selected
